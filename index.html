@@ -10,13 +10,13 @@
     <style>
         body { 
             font-family: Arial, sans-serif; 
-            padding: 20px; 
-            max-width: 1200px;
-            margin: 0 auto;
+            padding: 15px; 
+            margin: 0;
         }
         h2 {
             color: #333;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
+            font-size: 20px;
         }
         table { 
             width: 100%;
@@ -28,13 +28,13 @@
             background: #007bff; 
             color: white; 
             border: none; 
-            border-radius: 5px; 
+            border-radius: 4px; 
         }
         .copy-btn:hover {
             background: #0056b3;
         }
         .dataTables_wrapper .dataTables_filter {
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
         .dataTables_length select {
             padding: 4px;
@@ -46,61 +46,66 @@
             transform: translateX(-50%);
             background: #333;
             color: white;
-            padding: 10px 20px;
+            padding: 8px 15px;
             border-radius: 4px;
             display: none;
             z-index: 1000;
+            font-size: 14px;
         }
-        .column-search {
+        .search-input {
             width: 100%;
-            padding: 5px;
+            padding: 6px;
             border-radius: 4px;
-            border: 1px solid #ddd;
-            margin-bottom: 5px;
+            border: 1px solid #ccc;
+            margin-bottom: 4px;
             box-sizing: border-box;
+            font-size: 13px;
         }
-        thead th {
-            position: relative;
-            padding-top: 35px !important;
+        .search-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
         }
-        .search-inputs {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
+        .search-col {
+            flex: 1;
+        }
+        table.dataTable tbody tr {
+            height: 45px;
+        }
+        .dataTables_wrapper .dataTables_paginate .paginate_button {
+            padding: 0.25em 0.75em;
+        }
+        /* Hide default search box and show our custom one */
+        .dataTables_filter {
+            display: none;
         }
     </style>
 </head>
 <body>
     <h2>Shop List</h2>
     
+    <div class="search-row">
+        <div class="search-col">
+            <input type="text" id="searchShopId" class="search-input" placeholder="Search Shop ID">
+        </div>
+        <div class="search-col">
+            <input type="text" id="searchDepartment" class="search-input" placeholder="Search Department">
+        </div>
+        <div class="search-col">
+            <input type="text" id="searchShopName" class="search-input" placeholder="Search Shop Name">
+        </div>
+        <div class="search-col">
+            <input type="text" id="searchSalesman" class="search-input" placeholder="Search Salesman">
+        </div>
+    </div>
+    
     <table id="shopTable" class="display">
         <thead>
             <tr>
-                <th>
-                    <div class="search-inputs">
-                        <input type="text" class="column-search" placeholder="Search Shop ID" data-column="0">
-                    </div>
-                    Shop ID
-                </th>
-                <th>
-                    <div class="search-inputs">
-                        <input type="text" class="column-search" placeholder="Search Department" data-column="1">
-                    </div>
-                    Department
-                </th>
-                <th>
-                    <div class="search-inputs">
-                        <input type="text" class="column-search" placeholder="Search Shop Name" data-column="2">
-                    </div>
-                    Shop Name
-                </th>
-                <th>
-                    <div class="search-inputs">
-                        <input type="text" class="column-search" placeholder="Search Salesman" data-column="3">
-                    </div>
-                    Salesman
-                </th>
+                <th>Shop ID</th>
+                <th>Department</th>
+                <th>Shop Name</th>
+                <th>Salesman</th>
                 <th>Copy Shop ID</th>
             </tr>
         </thead>
@@ -124,11 +129,11 @@
                     const tableBody = $("#shopTable tbody");
                     
                     data.forEach(row => {
-                        // Get data from the correct columns based on your Excel screenshot
-                        const shopId = row[0] || '';            // A: shop_id
-                        const department = row[2] || '';        // C: shop_department
-                        const shopName = row[3] || '';          // D: shop_name
-                        const salesman = row[4] || '';          // E: salesman_name (you clarified this is salesman name)
+                        // Get data from the correct columns based on your confirmed structure
+                        const shopId = row[0] || '';        // shop_id
+                        const department = row[2] || '';    // shop_department
+                        const shopName = row[3] || '';      // shop_name
+                        const salesman = row[4] || '';      // salesman_name
                         
                         tableBody.append(`
                             <tr>
@@ -146,13 +151,35 @@
                         pageLength: 25,
                         lengthMenu: [10, 25, 50, 100],
                         order: [[0, 'asc']],
-                        searching: true
+                        searching: true,
+                        language: {
+                            emptyTable: "No shop data available",
+                            info: "Showing _START_ to _END_ of _TOTAL_ shops",
+                            paginate: {
+                                first: "First",
+                                last: "Last",
+                                next: "Next",
+                                previous: "Prev"
+                            }
+                        },
+                        responsive: true
                     });
                     
-                    // Individual column searching
-                    $('.column-search').on('keyup change', function() {
-                        const colIndex = $(this).data('column');
-                        table.column(colIndex).search(this.value).draw();
+                    // Set up custom search inputs
+                    $('#searchShopId').on('keyup change', function() {
+                        table.column(0).search(this.value).draw();
+                    });
+                    
+                    $('#searchDepartment').on('keyup change', function() {
+                        table.column(1).search(this.value).draw();
+                    });
+                    
+                    $('#searchShopName').on('keyup change', function() {
+                        table.column(2).search(this.value).draw();
+                    });
+                    
+                    $('#searchSalesman').on('keyup change', function() {
+                        table.column(3).search(this.value).draw();
                     });
                     
                     // Set up copy buttons
@@ -201,7 +228,7 @@
         
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text)
-                .then(() => showToast(`Copied Shop ID: ${text}`))
+                .then(() => showToast(`Copied: ${text}`))
                 .catch(err => showToast('Copy failed: ' + err));
         }
         
@@ -213,3 +240,4 @@
     </script>
 </body>
 </html>
+*/
