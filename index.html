@@ -40,6 +40,10 @@
 
 <h2>Shop List</h2>
 
+<!-- File Upload -->
+<input type="file" id="csvFileInput" accept=".csv">
+<br><br>
+
 <!-- Filters -->
 <div class="filter-container">
     <label for="filterSalesman">Salesman:</label>
@@ -73,11 +77,23 @@
 </table>
 
 <script>
-    $(document).ready(function() {
-        let dataUrl = "https://path-to-your-csv-or-google-sheet"; // Change this to your actual data source
-        
-        $.get(dataUrl, function(response) {
-            let rows = response.split("\n").slice(1); // Skip headers
+    $(document).ready(function () {
+        let table = $('#shopTable').DataTable(); // Initialize empty DataTable
+
+        $('#csvFileInput').on('change', function (event) {
+            let file = event.target.files[0];
+            if (!file) return;
+
+            let reader = new FileReader();
+            reader.onload = function (e) {
+                let csvData = e.target.result;
+                parseCSV(csvData, table);
+            };
+            reader.readAsText(file);
+        });
+
+        function parseCSV(csvData, table) {
+            let rows = csvData.split("\n").slice(1); // Remove headers
             let tableData = [];
             let salesmanSet = new Set();
             let shopSet = new Set();
@@ -92,11 +108,13 @@
                 let salesman = cols[4].trim();  // Salesman Name
                 let department = cols[2].trim(); // Department
 
-                salesmanSet.add(salesman);
-                shopSet.add(shopName);
-                departmentSet.add(department);
+                if (shopName && shopCode && salesman && department) {
+                    salesmanSet.add(salesman);
+                    shopSet.add(shopName);
+                    departmentSet.add(department);
 
-                tableData.push([shopName, shopCode, salesman, department, `<button class="copy-btn" onclick="copyToClipboard('${shopCode}')">Copy</button>`]);
+                    tableData.push([shopName, shopCode, salesman, department, `<button class="copy-btn" onclick="copyToClipboard('${shopCode}')">Copy</button>`]);
+                }
             });
 
             // Populate filters
@@ -104,24 +122,22 @@
             populateFilter("#filterShop", shopSet);
             populateFilter("#filterDepartment", departmentSet);
 
-            // Initialize DataTable
-            let table = $('#shopTable').DataTable({
-                data: tableData,
-                pageLength: 25 // Show more than 10 entries
-            });
+            // Update DataTable
+            table.clear();
+            table.rows.add(tableData).draw();
 
             // Filter events
-            $('#filterSalesman, #filterShop, #filterDepartment').on('change', function() {
+            $('#filterSalesman, #filterShop, #filterDepartment').on('change', function () {
                 table.column(2).search($('#filterSalesman').val()).draw();
                 table.column(0).search($('#filterShop').val()).draw();
                 table.column(3).search($('#filterDepartment').val()).draw();
             });
-        });
-
+        }
     });
 
     function populateFilter(selector, dataSet) {
         let select = $(selector);
+        select.empty().append(`<option value="">All</option>`); // Reset and add "All"
         dataSet.forEach(item => select.append(`<option value="${item}">${item}</option>`));
     }
 
