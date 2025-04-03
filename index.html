@@ -3,66 +3,237 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shop Data</title>
+    <title>Shop Universe</title>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        table { width: 100%; }
-        button { padding: 5px 10px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        table { 
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .copy-btn { 
+            padding: 5px 10px; 
+            cursor: pointer; 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+        }
+        .copy-btn:hover {
+            background: #0056b3;
+        }
+        .dataTables_wrapper .dataTables_filter {
+            margin-bottom: 15px;
+        }
+        .dataTables_length select {
+            padding: 4px;
+        }
+        .filter-section {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .filter-item {
+            display: flex;
+            flex-direction: column;
+            min-width: 200px;
+        }
+        .filter-item label {
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .filter-item select {
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            display: none;
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
-
     <h2>Shop List</h2>
+    
+    <div class="filter-section">
+        <div class="filter-item">
+            <label for="salesmanFilter">Salesman:</label>
+            <select id="salesmanFilter">
+                <option value="">All Salesmen</option>
+            </select>
+        </div>
+        <div class="filter-item">
+            <label for="departmentFilter">Department:</label>
+            <select id="departmentFilter">
+                <option value="">All Departments</option>
+            </select>
+        </div>
+        <div class="filter-item">
+            <label for="locationFilter">Location:</label>
+            <select id="locationFilter">
+                <option value="">All Locations</option>
+            </select>
+        </div>
+    </div>
+    
     <table id="shopTable" class="display">
         <thead>
             <tr>
+                <th>Shop ID</th>
+                <th>Email</th>
+                <th>Department</th>
                 <th>Shop Name</th>
-                <th>Shop Code</th>
-                <th>Salesman</th>
-                <th>Location</th>
-                <th>Copy Code</th>
+                <th>Copy Email</th>
             </tr>
         </thead>
         <tbody></tbody>
     </table>
-
+    
+    <div id="toast" class="toast"></div>
+    
     <script>
         $(document).ready(function() {
             const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSbzK0YkoCTER1SShENmuZOPVNDmT7bsyuskBQC6w3M_56CkFmX9RDJ3mCjM6Z5FumldHz0BdfKWTcg/pub?output=csv";
-
+            
+            // Fetch and process CSV data
             fetch(sheetUrl)
                 .then(response => response.text())
                 .then(csvText => {
                     const rows = csvText.split("\n").map(row => row.split(","));
+                    const headers = rows[0];
+                    const data = rows.slice(1);
+                    
+                    // Get unique values for filters
+                    const salesmen = new Set();
+                    const departments = new Set();
+                    const locations = new Set();
+                    
                     const tableBody = $("#shopTable tbody");
-
-                    rows.slice(1).forEach(row => {
+                    
+                    data.forEach(row => {
                         if (row.length < 4) return; // Ensure data exists
-                        const shopName = row[0], shopCode = row[1], salesman = row[2], location = row[3];
-
+                        
+                        // Correctly map data to columns (based on your description):
+                        // row[0] = Shop ID (Shop Name in UI)
+                        // row[1] = Email (Shop Code in UI)
+                        // row[2] = Department (Salesman in UI)
+                        // row[3] = Shop Name (Location in UI)
+                        
+                        const shopId = row[0];
+                        const email = row[1];
+                        const department = row[2];
+                        const shopName = row[3];
+                        
+                        // Add to filter sets
+                        if (department) departments.add(department);
+                        if (shopName) locations.add(shopName);
+                        
+                        // Extract salesman name from email if possible
+                        let salesman = email.split('@')[0];
+                        salesman = salesman.replace(/\./g, ' ').replace(/_/g, ' ');
+                        salesmen.add(salesman);
+                        
                         tableBody.append(`
                             <tr>
+                                <td>${shopId}</td>
+                                <td>${email}</td>
+                                <td>${department}</td>
                                 <td>${shopName}</td>
-                                <td>${shopCode}</td>
-                                <td>${salesman}</td>
-                                <td>${location}</td>
-                                <td><button onclick="copyToClipboard('${shopCode}')">Copy</button></td>
+                                <td><button class="copy-btn" data-email="${email}">Copy</button></td>
                             </tr>
                         `);
                     });
-
-                    $("#shopTable").DataTable(); // Initialize DataTable
+                    
+                    // Populate filter dropdowns
+                    populateFilter('#salesmanFilter', salesmen);
+                    populateFilter('#departmentFilter', departments);
+                    populateFilter('#locationFilter', locations);
+                    
+                    // Initialize DataTable with more rows per page options
+                    const table = $("#shopTable").DataTable({
+                        pageLength: 25,
+                        lengthMenu: [10, 25, 50, 100],
+                        order: [[0, 'asc']]
+                    });
+                    
+                    // Set up custom filtering
+                    setupCustomFilters(table);
+                    
+                    // Set up copy buttons
+                    setupCopyButtons();
                 });
-
         });
-
+        
+        function populateFilter(selector, values) {
+            const dropdown = $(selector);
+            Array.from(values).sort().forEach(value => {
+                dropdown.append(`<option value="${value}">${value}</option>`);
+            });
+        }
+        
+        function setupCustomFilters(table) {
+            $('#salesmanFilter, #departmentFilter, #locationFilter').on('change', function() {
+                const salesmanVal = $('#salesmanFilter').val();
+                const departmentVal = $('#departmentFilter').val();
+                const locationVal = $('#locationFilter').val();
+                
+                // Clear existing filters
+                table.search('').columns().search('').draw();
+                
+                // Apply new filters
+                if (salesmanVal) {
+                    table.column(1).search(salesmanVal, true, false).draw();
+                }
+                
+                if (departmentVal) {
+                    table.column(2).search(departmentVal, true, false).draw();
+                }
+                
+                if (locationVal) {
+                    table.column(3).search(locationVal, true, false).draw();
+                }
+            });
+        }
+        
+        function setupCopyButtons() {
+            $(document).on('click', '.copy-btn', function() {
+                const email = $(this).data('email');
+                copyToClipboard(email);
+            });
+        }
+        
         function copyToClipboard(text) {
-            navigator.clipboard.writeText(text).then(() => alert("Copied: " + text));
+            navigator.clipboard.writeText(text)
+                .then(() => showToast(`Copied: ${text}`))
+                .catch(err => showToast('Copy failed: ' + err));
+        }
+        
+        function showToast(message) {
+            const toast = $('#toast');
+            toast.text(message).fadeIn();
+            setTimeout(() => toast.fadeOut(), 2000);
         }
     </script>
-
 </body>
 </html>
