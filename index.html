@@ -39,26 +39,6 @@
         .dataTables_length select {
             padding: 4px;
         }
-        .filter-section {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        .filter-item {
-            display: flex;
-            flex-direction: column;
-            min-width: 200px;
-        }
-        .filter-item label {
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        .filter-item select {
-            padding: 6px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-        }
         .toast {
             position: fixed;
             bottom: 20px;
@@ -71,40 +51,57 @@
             display: none;
             z-index: 1000;
         }
+        .column-search {
+            width: 100%;
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin-bottom: 5px;
+            box-sizing: border-box;
+        }
+        thead th {
+            position: relative;
+            padding-top: 35px !important;
+        }
+        .search-inputs {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+        }
     </style>
 </head>
 <body>
     <h2>Shop List</h2>
     
-    <div class="filter-section">
-        <div class="filter-item">
-            <label for="salesmanFilter">Salesman:</label>
-            <select id="salesmanFilter">
-                <option value="">All Salesmen</option>
-            </select>
-        </div>
-        <div class="filter-item">
-            <label for="departmentFilter">Department:</label>
-            <select id="departmentFilter">
-                <option value="">All Departments</option>
-            </select>
-        </div>
-        <div class="filter-item">
-            <label for="locationFilter">Location:</label>
-            <select id="locationFilter">
-                <option value="">All Locations</option>
-            </select>
-        </div>
-    </div>
-    
     <table id="shopTable" class="display">
         <thead>
             <tr>
-                <th>Shop ID</th>
-                <th>Email</th>
-                <th>Department</th>
-                <th>Shop Name</th>
-                <th>Copy Email</th>
+                <th>
+                    <div class="search-inputs">
+                        <input type="text" class="column-search" placeholder="Search Shop ID" data-column="0">
+                    </div>
+                    Shop ID
+                </th>
+                <th>
+                    <div class="search-inputs">
+                        <input type="text" class="column-search" placeholder="Search Department" data-column="1">
+                    </div>
+                    Department
+                </th>
+                <th>
+                    <div class="search-inputs">
+                        <input type="text" class="column-search" placeholder="Search Shop Name" data-column="2">
+                    </div>
+                    Shop Name
+                </th>
+                <th>
+                    <div class="search-inputs">
+                        <input type="text" class="column-search" placeholder="Search Salesman" data-column="3">
+                    </div>
+                    Salesman
+                </th>
+                <th>Copy Shop ID</th>
             </tr>
         </thead>
         <tbody></tbody>
@@ -120,112 +117,91 @@
             fetch(sheetUrl)
                 .then(response => response.text())
                 .then(csvText => {
-                    const rows = csvText.split("\n").map(row => row.split(","));
+                    const rows = parseCsv(csvText);
                     const headers = rows[0];
                     const data = rows.slice(1);
-                    
-                    // Get unique values for filters
-                    const salesmen = new Set();
-                    const departments = new Set();
-                    const locations = new Set();
                     
                     const tableBody = $("#shopTable tbody");
                     
                     data.forEach(row => {
-                        if (row.length < 4) return; // Ensure data exists
-                        
-                        // Correctly map data to columns (based on your description):
-                        // row[0] = Shop ID (Shop Name in UI)
-                        // row[1] = Email (Shop Code in UI)
-                        // row[2] = Department (Salesman in UI)
-                        // row[3] = Shop Name (Location in UI)
-                        
-                        const shopId = row[0];
-                        const email = row[1];
-                        const department = row[2];
-                        const shopName = row[3];
-                        
-                        // Add to filter sets
-                        if (department) departments.add(department);
-                        if (shopName) locations.add(shopName);
-                        
-                        // Extract salesman name from email if possible
-                        let salesman = email.split('@')[0];
-                        salesman = salesman.replace(/\./g, ' ').replace(/_/g, ' ');
-                        salesmen.add(salesman);
+                        // Get data from the correct columns based on your Excel screenshot
+                        const shopId = row[0] || '';            // A: shop_id
+                        const department = row[2] || '';        // C: shop_department
+                        const shopName = row[3] || '';          // D: shop_name
+                        const salesman = row[4] || '';          // E: salesman_name (you clarified this is salesman name)
                         
                         tableBody.append(`
                             <tr>
                                 <td>${shopId}</td>
-                                <td>${email}</td>
                                 <td>${department}</td>
                                 <td>${shopName}</td>
-                                <td><button class="copy-btn" data-email="${email}">Copy</button></td>
+                                <td>${salesman}</td>
+                                <td><button class="copy-btn" data-shop-id="${shopId}">Copy</button></td>
                             </tr>
                         `);
                     });
                     
-                    // Populate filter dropdowns
-                    populateFilter('#salesmanFilter', salesmen);
-                    populateFilter('#departmentFilter', departments);
-                    populateFilter('#locationFilter', locations);
-                    
-                    // Initialize DataTable with more rows per page options
+                    // Initialize DataTable
                     const table = $("#shopTable").DataTable({
                         pageLength: 25,
                         lengthMenu: [10, 25, 50, 100],
-                        order: [[0, 'asc']]
+                        order: [[0, 'asc']],
+                        searching: true
                     });
                     
-                    // Set up custom filtering
-                    setupCustomFilters(table);
+                    // Individual column searching
+                    $('.column-search').on('keyup change', function() {
+                        const colIndex = $(this).data('column');
+                        table.column(colIndex).search(this.value).draw();
+                    });
                     
                     // Set up copy buttons
                     setupCopyButtons();
                 });
         });
         
-        function populateFilter(selector, values) {
-            const dropdown = $(selector);
-            Array.from(values).sort().forEach(value => {
-                dropdown.append(`<option value="${value}">${value}</option>`);
-            });
-        }
-        
-        function setupCustomFilters(table) {
-            $('#salesmanFilter, #departmentFilter, #locationFilter').on('change', function() {
-                const salesmanVal = $('#salesmanFilter').val();
-                const departmentVal = $('#departmentFilter').val();
-                const locationVal = $('#locationFilter').val();
+        function parseCsv(text) {
+            const result = [];
+            const lines = text.split('\n');
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
                 
-                // Clear existing filters
-                table.search('').columns().search('').draw();
+                const row = [];
+                let inQuotes = false;
+                let currentValue = '';
                 
-                // Apply new filters
-                if (salesmanVal) {
-                    table.column(1).search(salesmanVal, true, false).draw();
+                for (let j = 0; j < line.length; j++) {
+                    const char = line[j];
+                    
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        row.push(currentValue);
+                        currentValue = '';
+                    } else {
+                        currentValue += char;
+                    }
                 }
                 
-                if (departmentVal) {
-                    table.column(2).search(departmentVal, true, false).draw();
-                }
-                
-                if (locationVal) {
-                    table.column(3).search(locationVal, true, false).draw();
-                }
-            });
+                row.push(currentValue); // Push the last value
+                result.push(row);
+            }
+            
+            return result;
         }
         
         function setupCopyButtons() {
             $(document).on('click', '.copy-btn', function() {
-                const email = $(this).data('email');
-                copyToClipboard(email);
+                const shopId = $(this).data('shop-id');
+                copyToClipboard(shopId);
             });
         }
         
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text)
-                .then(() => showToast(`Copied: ${text}`))
+                .then(() => showToast(`Copied Shop ID: ${text}`))
                 .catch(err => showToast('Copy failed: ' + err));
         }
         
