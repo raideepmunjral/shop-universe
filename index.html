@@ -3,148 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shop List</title>
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
+    <title>Shop Data</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        .filter-container {
-            margin-bottom: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f4f4f4;
-        }
-        .copy-btn {
-            background-color: blue;
-            color: white;
-            border: none;
-            padding: 5px;
-            cursor: pointer;
-        }
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        table { width: 100%; }
+        button { padding: 5px 10px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
     </style>
 </head>
 <body>
 
-<h2>Shop List</h2>
+    <h2>Shop List</h2>
+    <table id="shopTable" class="display">
+        <thead>
+            <tr>
+                <th>Shop Name</th>
+                <th>Shop Code</th>
+                <th>Salesman</th>
+                <th>Location</th>
+                <th>Copy Code</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
 
-<!-- File Upload -->
-<input type="file" id="csvFileInput" accept=".csv">
-<br><br>
+    <script>
+        $(document).ready(function() {
+            const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSbzK0YkoCTER1SShENmuZOPVNDmT7bsyuskBQC6w3M_56CkFmX9RDJ3mCjM6Z5FumldHz0BdfKWTcg/pub?output=csv";
 
-<!-- Filters -->
-<div class="filter-container">
-    <label for="filterSalesman">Salesman:</label>
-    <select id="filterSalesman">
-        <option value="">All</option>
-    </select>
+            fetch(sheetUrl)
+                .then(response => response.text())
+                .then(csvText => {
+                    const rows = csvText.split("\n").map(row => row.split(","));
+                    const tableBody = $("#shopTable tbody");
 
-    <label for="filterShop">Shop Name:</label>
-    <select id="filterShop">
-        <option value="">All</option>
-    </select>
+                    rows.slice(1).forEach(row => {
+                        if (row.length < 4) return; // Ensure data exists
+                        const shopName = row[0], shopCode = row[1], salesman = row[2], location = row[3];
 
-    <label for="filterDepartment">Department:</label>
-    <select id="filterDepartment">
-        <option value="">All</option>
-    </select>
-</div>
+                        tableBody.append(`
+                            <tr>
+                                <td>${shopName}</td>
+                                <td>${shopCode}</td>
+                                <td>${salesman}</td>
+                                <td>${location}</td>
+                                <td><button onclick="copyToClipboard('${shopCode}')">Copy</button></td>
+                            </tr>
+                        `);
+                    });
 
-<!-- Table -->
-<table id="shopTable">
-    <thead>
-        <tr>
-            <th>Shop Name</th>
-            <th>Shop Code</th>
-            <th>Salesman</th>
-            <th>Department</th>
-            <th>Copy Code</th>
-        </tr>
-    </thead>
-    <tbody></tbody>
-</table>
+                    $("#shopTable").DataTable(); // Initialize DataTable
+                });
 
-<script>
-    $(document).ready(function () {
-        let table = $('#shopTable').DataTable(); // Initialize empty DataTable
-
-        $('#csvFileInput').on('change', function (event) {
-            let file = event.target.files[0];
-            if (!file) return;
-
-            let reader = new FileReader();
-            reader.onload = function (e) {
-                let csvData = e.target.result;
-                parseCSV(csvData, table);
-            };
-            reader.readAsText(file);
         });
 
-        function parseCSV(csvData, table) {
-            let rows = csvData.split("\n").slice(1); // Remove headers
-            let tableData = [];
-            let salesmanSet = new Set();
-            let shopSet = new Set();
-            let departmentSet = new Set();
-
-            rows.forEach(row => {
-                let cols = row.split(",");
-                if (cols.length < 4) return;
-
-                let shopName = cols[3].trim();  // Shop Name
-                let shopCode = cols[0].trim();  // Shop ID (for Copy)
-                let salesman = cols[4].trim();  // Salesman Name
-                let department = cols[2].trim(); // Department
-
-                if (shopName && shopCode && salesman && department) {
-                    salesmanSet.add(salesman);
-                    shopSet.add(shopName);
-                    departmentSet.add(department);
-
-                    tableData.push([shopName, shopCode, salesman, department, `<button class="copy-btn" onclick="copyToClipboard('${shopCode}')">Copy</button>`]);
-                }
-            });
-
-            // Populate filters
-            populateFilter("#filterSalesman", salesmanSet);
-            populateFilter("#filterShop", shopSet);
-            populateFilter("#filterDepartment", departmentSet);
-
-            // Update DataTable
-            table.clear();
-            table.rows.add(tableData).draw();
-
-            // Filter events
-            $('#filterSalesman, #filterShop, #filterDepartment').on('change', function () {
-                table.column(2).search($('#filterSalesman').val()).draw();
-                table.column(0).search($('#filterShop').val()).draw();
-                table.column(3).search($('#filterDepartment').val()).draw();
-            });
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => alert("Copied: " + text));
         }
-    });
-
-    function populateFilter(selector, dataSet) {
-        let select = $(selector);
-        select.empty().append(`<option value="">All</option>`); // Reset and add "All"
-        dataSet.forEach(item => select.append(`<option value="${item}">${item}</option>`));
-    }
-
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(() => alert("Copied: " + text));
-    }
-</script>
+    </script>
 
 </body>
 </html>
