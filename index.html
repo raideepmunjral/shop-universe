@@ -1,10 +1,68 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Shop Universe</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop Data</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        table { width: 100%; }
+        button { padding: 5px 10px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+    </style>
 </head>
 <body>
-    <h1>Welcome to Shop Universe</h1>
-    <p>Your interactive table will go here.</p>
+
+    <h2>Shop List</h2>
+    <table id="shopTable" class="display">
+        <thead>
+            <tr>
+                <th>Shop Name</th>
+                <th>Shop Code</th>
+                <th>Salesman</th>
+                <th>Location</th>
+                <th>Copy Code</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        $(document).ready(function() {
+            const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSbzK0YkoCTER1SShENmuZOPVNDmT7bsyuskBQC6w3M_56CkFmX9RDJ3mCjM6Z5FumldHz0BdfKWTcg/pub?output=csv";
+
+            fetch(sheetUrl)
+                .then(response => response.text())
+                .then(csvText => {
+                    const rows = csvText.split("\n").map(row => row.split(","));
+                    const tableBody = $("#shopTable tbody");
+
+                    rows.slice(1).forEach(row => {
+                        if (row.length < 4) return; // Ensure data exists
+                        const shopName = row[0], shopCode = row[1], salesman = row[2], location = row[3];
+
+                        tableBody.append(`
+                            <tr>
+                                <td>${shopName}</td>
+                                <td>${shopCode}</td>
+                                <td>${salesman}</td>
+                                <td>${location}</td>
+                                <td><button onclick="copyToClipboard('${shopCode}')">Copy</button></td>
+                            </tr>
+                        `);
+                    });
+
+                    $("#shopTable").DataTable(); // Initialize DataTable
+                });
+
+        });
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => alert("Copied: " + text));
+        }
+    </script>
+
 </body>
 </html>
