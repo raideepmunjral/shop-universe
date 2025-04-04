@@ -5,8 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shop Universe</title>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.dataTables.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -79,6 +84,30 @@
         .dataTables_filter {
             display: none;
         }
+        select.dropdown-filter {
+            width: 100%;
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            margin-bottom: 4px;
+            box-sizing: border-box;
+            font-size: 13px;
+        }
+        .dt-buttons {
+            margin-bottom: 15px;
+        }
+        .dt-button {
+            padding: 6px 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        .dt-button:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
 <body>
@@ -86,16 +115,19 @@
     
     <div class="search-row">
         <div class="search-col">
-            <input type="text" id="searchShopId" class="search-input" placeholder="Search Shop ID">
-        </div>
-        <div class="search-col">
-            <input type="text" id="searchDepartment" class="search-input" placeholder="Search Department">
+            <select id="departmentFilter" class="dropdown-filter">
+                <option value="">All Departments</option>
+                <!-- Options will be populated dynamically -->
+            </select>
         </div>
         <div class="search-col">
             <input type="text" id="searchShopName" class="search-input" placeholder="Search Shop Name">
         </div>
         <div class="search-col">
-            <input type="text" id="searchSalesman" class="search-input" placeholder="Search Salesman">
+            <select id="salesmanFilter" class="dropdown-filter">
+                <option value="">All Salesmen</option>
+                <!-- Options will be populated dynamically -->
+            </select>
         </div>
     </div>
     
@@ -128,12 +160,20 @@
                     
                     const tableBody = $("#shopTable tbody");
                     
+                    // For dropdown filters
+                    const departments = new Set();
+                    const salesmen = new Set();
+                    
                     data.forEach(row => {
                         // Get data from the correct columns based on your confirmed structure
                         const shopId = row[0] || '';        // shop_id
                         const department = row[2] || '';    // shop_department
                         const shopName = row[3] || '';      // shop_name
                         const salesman = row[4] || '';      // salesman_name
+                        
+                        // Add to dropdown filter sets
+                        if(department) departments.add(department);
+                        if(salesman) salesmen.add(salesman);
                         
                         tableBody.append(`
                             <tr>
@@ -146,7 +186,19 @@
                         `);
                     });
                     
-                    // Initialize DataTable
+                    // Populate Department dropdown
+                    const departmentFilter = $('#departmentFilter');
+                    Array.from(departments).sort().forEach(department => {
+                        departmentFilter.append(`<option value="${department}">${department}</option>`);
+                    });
+                    
+                    // Populate Salesman dropdown
+                    const salesmanFilter = $('#salesmanFilter');
+                    Array.from(salesmen).sort().forEach(salesman => {
+                        salesmanFilter.append(`<option value="${salesman}">${salesman}</option>`);
+                    });
+                    
+                    // Initialize DataTable with PDF export
                     const table = $("#shopTable").DataTable({
                         pageLength: 25,
                         lengthMenu: [10, 25, 50, 100],
@@ -162,23 +214,38 @@
                                 previous: "Prev"
                             }
                         },
-                        responsive: true
+                        responsive: true,
+                        dom: 'Bfrtip',
+                        buttons: [
+                            {
+                                extend: 'pdfHtml5',
+                                text: 'Download PDF',
+                                title: 'Shop List',
+                                exportOptions: {
+                                    columns: [0, 1, 2, 3] // Exclude the Copy button column
+                                },
+                                customize: function(doc) {
+                                    doc.defaultStyle.fontSize = 10;
+                                    doc.styles.tableHeader.fontSize = 11;
+                                    doc.styles.tableHeader.alignment = 'left';
+                                    doc.content[1].table.widths = ['20%', '20%', '40%', '20%'];
+                                }
+                            }
+                        ]
                     });
                     
-                    // Set up custom search inputs
-                    $('#searchShopId').on('keyup change', function() {
-                        table.column(0).search(this.value).draw();
-                    });
-                    
-                    $('#searchDepartment').on('keyup change', function() {
-                        table.column(1).search(this.value).draw();
-                    });
-                    
+                    // Set up shop name search
                     $('#searchShopName').on('keyup change', function() {
                         table.column(2).search(this.value).draw();
                     });
                     
-                    $('#searchSalesman').on('keyup change', function() {
+                    // Set up department dropdown filter
+                    $('#departmentFilter').on('change', function() {
+                        table.column(1).search(this.value).draw();
+                    });
+                    
+                    // Set up salesman dropdown filter
+                    $('#salesmanFilter').on('change', function() {
                         table.column(3).search(this.value).draw();
                     });
                     
