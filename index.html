@@ -9,9 +9,8 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -27,16 +26,25 @@
             width: 100%;
             border-collapse: collapse;
         }
-        .copy-btn { 
+        .copy-btn, .pdf-btn { 
             padding: 5px 10px; 
             cursor: pointer; 
             background: #007bff; 
             color: white; 
             border: none; 
             border-radius: 4px; 
+            margin: 5px 0;
         }
-        .copy-btn:hover {
-            background: #0056b3;
+        .pdf-btn {
+            background: #4CAF50;
+            display: block;
+            width: 100%;
+            max-width: 200px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .copy-btn:hover, .pdf-btn:hover {
+            opacity: 0.9;
         }
         .dataTables_wrapper .dataTables_filter {
             margin-bottom: 10px;
@@ -68,11 +76,13 @@
         }
         .search-row {
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
             margin-bottom: 10px;
         }
         .search-col {
             flex: 1;
+            min-width: 150px;
         }
         table.dataTable tbody tr {
             height: 45px;
@@ -93,25 +103,36 @@
             box-sizing: border-box;
             font-size: 13px;
         }
-        .dt-buttons {
-            margin-bottom: 15px;
-        }
-        .dt-button {
-            padding: 6px 12px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-right: 5px;
-        }
-        .dt-button:hover {
-            background-color: #45a049;
+        
+        /* Responsive design improvements */
+        @media screen and (max-width: 767px) {
+            .search-row {
+                flex-direction: column;
+                gap: 5px;
+            }
+            .search-col {
+                width: 100%;
+                flex: none;
+            }
+            .dataTables_wrapper .dataTables_paginate .paginate_button {
+                padding: 0.25em 0.5em;
+            }
+            .dataTables_length, .dataTables_info {
+                float: none !important;
+                text-align: left;
+                margin-bottom: 10px;
+            }
+            .pdf-btn {
+                max-width: 100%;
+            }
         }
     </style>
 </head>
 <body>
     <h2>Shop List</h2>
+    
+    <!-- Custom PDF Download Button -->
+    <button id="pdfExportBtn" class="pdf-btn">Download PDF</button>
     
     <div class="search-row">
         <div class="search-col">
@@ -149,6 +170,7 @@
     <script>
         $(document).ready(function() {
             const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSbzK0YkoCTER1SShENmuZOPVNDmT7bsyuskBQC6w3M_56CkFmX9RDJ3mCjM6Z5FumldHz0BdfKWTcg/pub?output=csv";
+            let table; // Declare table variable to use across functions
             
             // Fetch and process CSV data
             fetch(sheetUrl)
@@ -198,8 +220,8 @@
                         salesmanFilter.append(`<option value="${salesman}">${salesman}</option>`);
                     });
                     
-                    // Initialize DataTable with PDF export
-                    const table = $("#shopTable").DataTable({
+                    // Initialize DataTable
+                    table = $("#shopTable").DataTable({
                         pageLength: 25,
                         lengthMenu: [10, 25, 50, 100],
                         order: [[0, 'asc']],
@@ -214,24 +236,7 @@
                                 previous: "Prev"
                             }
                         },
-                        responsive: true,
-                        dom: 'Bfrtip',
-                        buttons: [
-                            {
-                                extend: 'pdfHtml5',
-                                text: 'Download PDF',
-                                title: 'Shop List',
-                                exportOptions: {
-                                    columns: [0, 1, 2, 3] // Exclude the Copy button column
-                                },
-                                customize: function(doc) {
-                                    doc.defaultStyle.fontSize = 10;
-                                    doc.styles.tableHeader.fontSize = 11;
-                                    doc.styles.tableHeader.alignment = 'left';
-                                    doc.content[1].table.widths = ['20%', '20%', '40%', '20%'];
-                                }
-                            }
-                        ]
+                        responsive: true
                     });
                     
                     // Set up shop name search
@@ -247,6 +252,11 @@
                     // Set up salesman dropdown filter
                     $('#salesmanFilter').on('change', function() {
                         table.column(3).search(this.value).draw();
+                    });
+                    
+                    // Set up PDF export button
+                    $('#pdfExportBtn').on('click', function() {
+                        exportTableToPDF();
                     });
                     
                     // Set up copy buttons
@@ -303,6 +313,53 @@
             const toast = $('#toast');
             toast.text(message).fadeIn();
             setTimeout(() => toast.fadeOut(), 2000);
+        }
+        
+        function exportTableToPDF() {
+            try {
+                // Get visible data from table
+                const table = $('#shopTable').DataTable();
+                const visibleData = [];
+                
+                table.rows({ search: 'applied' }).every(function() {
+                    const data = this.data();
+                    // Exclude the last column (Copy button)
+                    visibleData.push([data[0], data[1], data[2], data[3]]);
+                });
+                
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                // Add title
+                doc.setFontSize(18);
+                doc.text("Shop List", 14, 22);
+                
+                // Create the table using autoTable plugin
+                doc.autoTable({
+                    head: [["Shop ID", "Department", "Shop Name", "Salesman"]],
+                    body: visibleData,
+                    startY: 30,
+                    styles: {
+                        fontSize: 10,
+                        cellPadding: 3
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 30 },
+                        1: { cellWidth: 35 },
+                        2: { cellWidth: 70 },
+                        3: { cellWidth: 35 }
+                    }
+                });
+                
+                // Download the PDF
+                const filename = 'ShopList_' + new Date().toLocaleDateString().replace(/\//g, '-') + '.pdf';
+                doc.save(filename);
+                
+                showToast('PDF downloaded successfully');
+            } catch (error) {
+                console.error('PDF generation error:', error);
+                showToast('Failed to generate PDF. Please try again.');
+            }
         }
     </script>
 </body>
