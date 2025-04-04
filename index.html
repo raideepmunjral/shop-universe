@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.dataTables.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <style>
@@ -26,25 +25,16 @@
             width: 100%;
             border-collapse: collapse;
         }
-        .copy-btn, .pdf-btn { 
+        .copy-btn { 
             padding: 5px 10px; 
             cursor: pointer; 
             background: #007bff; 
             color: white; 
             border: none; 
             border-radius: 4px; 
-            margin: 5px 0;
         }
-        .pdf-btn {
-            background: #4CAF50;
-            display: block;
-            width: 100%;
-            max-width: 200px;
-            text-align: center;
-            margin-bottom: 15px;
-        }
-        .copy-btn:hover, .pdf-btn:hover {
-            opacity: 0.9;
+        .copy-btn:hover {
+            background: #0056b3;
         }
         .dataTables_wrapper .dataTables_filter {
             margin-bottom: 10px;
@@ -103,6 +93,84 @@
             box-sizing: border-box;
             font-size: 13px;
         }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .action-button {
+            padding: 8px 16px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .action-button:hover {
+            opacity: 0.9;
+        }
+        .action-button.export-text {
+            background: #ff9800;
+        }
+        
+        /* Modal for displaying export data */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            max-height: 70vh;
+            overflow-y: auto;
+            border-radius: 5px;
+        }
+        .close-modal {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-modal:hover {
+            color: black;
+        }
+        .copy-all-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .copy-all-btn:hover {
+            background: #0056b3;
+        }
+        .export-data {
+            margin-top: 15px;
+            white-space: pre-wrap;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f9f9f9;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
         
         /* Responsive design improvements */
         @media screen and (max-width: 767px) {
@@ -122,8 +190,16 @@
                 text-align: left;
                 margin-bottom: 10px;
             }
-            .pdf-btn {
-                max-width: 100%;
+            .action-buttons {
+                flex-direction: column;
+                gap: 5px;
+            }
+            .action-button {
+                width: 100%;
+            }
+            .modal-content {
+                width: 95%;
+                margin: 5% auto;
             }
         }
     </style>
@@ -131,8 +207,11 @@
 <body>
     <h2>Shop List</h2>
     
-    <!-- Custom PDF Download Button -->
-    <button id="pdfExportBtn" class="pdf-btn">Download PDF</button>
+    <!-- Action buttons -->
+    <div class="action-buttons">
+        <button id="openPdfButton" class="action-button">Open PDF in New Tab</button>
+        <button id="exportToText" class="action-button export-text">Copy as Text</button>
+    </div>
     
     <div class="search-row">
         <div class="search-col">
@@ -166,6 +245,17 @@
     </table>
     
     <div id="toast" class="toast"></div>
+    
+    <!-- Modal for displaying exportable text data -->
+    <div id="exportModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>Shop List Data</h3>
+            <p>Copy the data below:</p>
+            <button id="copyAllData" class="copy-all-btn">Copy All Data</button>
+            <pre class="export-data" id="exportData"></pre>
+        </div>
+    </div>
     
     <script>
         $(document).ready(function() {
@@ -254,13 +344,37 @@
                         table.column(3).search(this.value).draw();
                     });
                     
-                    // Set up PDF export button
-                    $('#pdfExportBtn').on('click', function() {
-                        exportTableToPDF();
+                    // Set up open PDF in new tab button
+                    $('#openPdfButton').on('click', function() {
+                        generatePdfInNewTab();
+                    });
+                    
+                    // Set up export to text button
+                    $('#exportToText').on('click', function() {
+                        exportTableData();
                     });
                     
                     // Set up copy buttons
                     setupCopyButtons();
+                    
+                    // Modal close button
+                    $('.close-modal').on('click', function() {
+                        $('#exportModal').hide();
+                    });
+                    
+                    // Copy all data button
+                    $('#copyAllData').on('click', function() {
+                        const exportData = document.getElementById('exportData');
+                        copyTextToClipboard(exportData.textContent);
+                        showToast('All data copied to clipboard');
+                    });
+                    
+                    // Close modal when clicking outside
+                    $(window).on('click', function(event) {
+                        if (event.target == document.getElementById('exportModal')) {
+                            $('#exportModal').hide();
+                        }
+                    });
                 });
         });
         
@@ -309,13 +423,52 @@
                 .catch(err => showToast('Copy failed: ' + err));
         }
         
+        function copyTextToClipboard(text) {
+            // Create a temporary textarea element
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'absolute';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            
+            // Select and copy the text
+            textarea.select();
+            document.execCommand('copy');
+            
+            // Clean up
+            document.body.removeChild(textarea);
+        }
+        
         function showToast(message) {
             const toast = $('#toast');
             toast.text(message).fadeIn();
             setTimeout(() => toast.fadeOut(), 2000);
         }
         
-        function exportTableToPDF() {
+        function exportTableData() {
+            try {
+                // Get visible data from table
+                const table = $('#shopTable').DataTable();
+                let exportText = "Shop ID\tDepartment\tShop Name\tSalesman\n";
+                
+                table.rows({ search: 'applied' }).every(function() {
+                    const data = this.data();
+                    // Exclude the last column (Copy button)
+                    exportText += `${data[0]}\t${data[1]}\t${data[2]}\t${data[3]}\n`;
+                });
+                
+                // Show in modal
+                $('#exportData').text(exportText);
+                $('#exportModal').show();
+                
+            } catch (error) {
+                console.error('Export error:', error);
+                showToast('Failed to export data. Please try again.');
+            }
+        }
+        
+        function generatePdfInNewTab() {
             try {
                 // Get visible data from table
                 const table = $('#shopTable').DataTable();
@@ -327,35 +480,127 @@
                     visibleData.push([data[0], data[1], data[2], data[3]]);
                 });
                 
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
+                // Open new tab
+                const newTab = window.open('', '_blank');
+                if (!newTab) {
+                    showToast('Pop-up blocked. Please allow pop-ups for this site.');
+                    return;
+                }
                 
-                // Add title
-                doc.setFontSize(18);
-                doc.text("Shop List", 14, 22);
+                // Write HTML to new tab
+                newTab.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Shop List PDF</title>
+                        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+                        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+                        <style>
+                            body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+                            h1 { color: #333; }
+                            button { 
+                                padding: 10px 20px; 
+                                background: #4CAF50; 
+                                color: white; 
+                                border: none; 
+                                border-radius: 4px; 
+                                cursor: pointer; 
+                                font-size: 16px;
+                                margin: 20px 0;
+                            }
+                            button:hover { background: #45a049; }
+                            #pdfPreview { 
+                                width: 100%; 
+                                height: 500px; 
+                                border: 1px solid #ddd; 
+                                margin-top: 20px;
+                            }
+                            .loading { 
+                                display: flex; 
+                                justify-content: center; 
+                                align-items: center; 
+                                height: 500px;
+                                font-size: 18px;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>Shop List PDF</h1>
+                        <p>Your PDF is ready. Click the button below to download.</p>
+                        <button id="downloadBtn">Download PDF</button>
+                        <div id="pdfContainer">
+                            <div class="loading">Preparing PDF preview...</div>
+                        </div>
+                        
+                        <script>
+                            // Data from parent window
+                            const tableData = ${JSON.stringify(visibleData)};
+                            
+                            document.addEventListener('DOMContentLoaded', function() {
+                                // Create PDF when page loads
+                                createAndDisplayPDF();
+                                
+                                // Set up download button
+                                document.getElementById('downloadBtn').addEventListener('click', function() {
+                                    downloadPDF();
+                                });
+                            });
+                            
+                            function createAndDisplayPDF() {
+                                try {
+                                    window.jspdf.jsPDF = window.jspdf.jsPDF;
+                                    
+                                    const { jsPDF } = window.jspdf;
+                                    const doc = new jsPDF();
+                                    
+                                    // Add title
+                                    doc.setFontSize(18);
+                                    doc.text("Shop List", 14, 22);
+                                    
+                                    // Create the table
+                                    doc.autoTable({
+                                        head: [["Shop ID", "Department", "Shop Name", "Salesman"]],
+                                        body: tableData,
+                                        startY: 30,
+                                        styles: {
+                                            fontSize: 10,
+                                            cellPadding: 3
+                                        },
+                                        columnStyles: {
+                                            0: { cellWidth: 30 },
+                                            1: { cellWidth: 35 },
+                                            2: { cellWidth: 70 },
+                                            3: { cellWidth: 35 }
+                                        }
+                                    });
+                                    
+                                    // Convert PDF to data URL
+                                    const pdfDataUrl = doc.output('datauristring');
+                                    
+                                    // Display PDF in iframe
+                                    const pdfContainer = document.getElementById('pdfContainer');
+                                    pdfContainer.innerHTML = '<iframe id="pdfPreview" src="' + pdfDataUrl + '"></iframe>';
+                                    
+                                    // Store PDF in window for download
+                                    window.pdfDoc = doc;
+                                } catch (error) {
+                                    console.error('PDF generation error:', error);
+                                    document.getElementById('pdfContainer').innerHTML = '<p>Error generating PDF. Please try again.</p>';
+                                }
+                            }
+                            
+                            function downloadPDF() {
+                                if (window.pdfDoc) {
+                                    const filename = 'ShopList_' + new Date().toLocaleDateString().replace(/\//g, '-') + '.pdf';
+                                    window.pdfDoc.save(filename);
+                                }
+                            }
+                        </script>
+                    </body>
+                    </html>
+                `);
+                newTab.document.close();
                 
-                // Create the table using autoTable plugin
-                doc.autoTable({
-                    head: [["Shop ID", "Department", "Shop Name", "Salesman"]],
-                    body: visibleData,
-                    startY: 30,
-                    styles: {
-                        fontSize: 10,
-                        cellPadding: 3
-                    },
-                    columnStyles: {
-                        0: { cellWidth: 30 },
-                        1: { cellWidth: 35 },
-                        2: { cellWidth: 70 },
-                        3: { cellWidth: 35 }
-                    }
-                });
-                
-                // Download the PDF
-                const filename = 'ShopList_' + new Date().toLocaleDateString().replace(/\//g, '-') + '.pdf';
-                doc.save(filename);
-                
-                showToast('PDF downloaded successfully');
             } catch (error) {
                 console.error('PDF generation error:', error);
                 showToast('Failed to generate PDF. Please try again.');
