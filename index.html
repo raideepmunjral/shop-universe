@@ -238,48 +238,85 @@
         }
         
         async function fetchWithFallback(url) {
-            // Always try CORS proxy first since direct access is blocked
-            const corsProxy = "https://api.allorigins.win/raw?url=";
+            // Try multiple CORS proxies
+            const proxies = [
+                "https://corsproxy.io/?",
+                "https://api.codetabs.com/v1/proxy?quest=",
+                "https://thingproxy.freeboard.io/fetch/",
+                "https://cors-anywhere.herokuapp.com/"
+            ];
             
-            try {
-                console.log('Using CORS proxy...');
-                const proxyResponse = await fetch(corsProxy + encodeURIComponent(url));
-                if (!proxyResponse.ok) {
-                    throw new Error(`Proxy failed: HTTP ${proxyResponse.status}`);
+            for (let i = 0; i < proxies.length; i++) {
+                try {
+                    console.log(`Trying CORS proxy ${i + 1}: ${proxies[i]}`);
+                    const proxyResponse = await fetch(proxies[i] + encodeURIComponent(url));
+                    if (!proxyResponse.ok) {
+                        throw new Error(`Proxy ${i + 1} failed: HTTP ${proxyResponse.status}`);
+                    }
+                    const text = await proxyResponse.text();
+                    console.log(`CORS proxy ${i + 1} successful, data length:`, text.length);
+                    console.log('First 200 chars:', text.substring(0, 200));
+                    
+                    // Check if we got HTML error instead of CSV
+                    if (text.includes('<html') || text.includes('<!DOCTYPE') || text.includes('Internal Server Error') || text.includes('nginx')) {
+                        throw new Error(`Received HTML/Error page instead of CSV: ${text.substring(0, 100)}`);
+                    }
+                    
+                    // Check if it starts with expected CSV headers
+                    if (!text.includes('shop_id') || !text.includes(',')) {
+                        throw new Error(`Invalid CSV format: ${text.substring(0, 100)}`);
+                    }
+                    
+                    return text;
+                } catch (error) {
+                    console.log(`CORS proxy ${i + 1} failed:`, error.message);
+                    if (i === proxies.length - 1) {
+                        // Last proxy failed, try direct as final attempt
+                        console.log('All proxies failed, trying direct fetch...');
+                        try {
+                            const response = await fetch(url);
+                            if (!response.ok) {
+                                throw new Error(`Direct fetch failed: HTTP ${response.status}`);
+                            }
+                            const text = await response.text();
+                            console.log('Direct fetch successful');
+                            return text;
+                        } catch (directError) {
+                            throw new Error(`All methods failed. Last error: ${directError.message}`);
+                        }
+                    }
                 }
-                const text = await proxyResponse.text();
-                console.log('CORS proxy fetch successful');
-                return text;
-            } catch (error) {
-                console.log('CORS proxy failed, trying direct fetch...', error.message);
-                
-                // Try direct fetch as fallback (unlikely to work but worth trying)
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                const text = await response.text();
-                console.log('Direct fetch successful');
-                return text;
             }
         }
         
         function processCSVData(csvText) {
             try {
+                console.log('Raw CSV length:', csvText.length);
+                console.log('First 500 chars of CSV:', csvText.substring(0, 500));
+                console.log('Last 200 chars of CSV:', csvText.substring(csvText.length - 200));
+                
                 const rows = parseCsv(csvText);
                 
                 if (rows.length === 0) {
                     throw new Error('No data found in CSV');
                 }
                 
+                console.log('Total rows parsed:', rows.length);
+                console.log('First row (headers):', rows[0]);
+                console.log('Second row (first data):', rows[1]);
+                console.log('Third row:', rows[2]);
+                
                 const headers = rows[0];
-                const data = rows.slice(1);
+                const data = rows.slice(1).filter(row => {
+                    // Filter out empty rows
+                    return row.some(cell => cell && cell.toString().trim() !== '');
+                });
                 
                 console.log('CSV Headers:', headers);
-                console.log('Data rows:', data.length);
+                console.log('Data rows after filtering:', data.length);
                 
                 if (data.length === 0) {
-                    throw new Error('No data rows found');
+                    throw new Error('No data rows found after filtering empty rows');
                 }
                 
                 // Clear existing table
