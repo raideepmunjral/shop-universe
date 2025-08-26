@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shop Universe</title>
+    <title>Shop Universe - Debug Version</title>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.dataTables.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -16,7 +16,28 @@
             font-family: Arial, sans-serif; 
             padding: 15px; 
             margin: 0;
+            background-color: #f5f5f5;
         }
+        .debug-panel {
+            background: white;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .debug-info {
+            background: #f8f9fa;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 4px solid #007bff;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .success { border-left-color: #28a745; background-color: #d4edda; }
+        .error { border-left-color: #dc3545; background-color: #f8d7da; }
+        .warning { border-left-color: #ffc107; background-color: #fff3cd; }
+        
         h2 {
             color: #333;
             margin-bottom: 15px;
@@ -25,32 +46,22 @@
         table { 
             width: 100%;
             border-collapse: collapse;
+            background: white;
         }
-        .copy-btn, .pdf-btn, .refresh-btn { 
-            padding: 5px 10px; 
+        .copy-btn, .pdf-btn, .refresh-btn, .debug-btn { 
+            padding: 8px 12px; 
             cursor: pointer; 
-            background: #007bff; 
-            color: white; 
             border: none; 
             border-radius: 4px; 
-            margin: 5px 0;
+            margin: 5px 5px 5px 0;
+            font-size: 14px;
         }
-        .pdf-btn {
-            background: #4CAF50;
-            display: inline-block;
-            width: auto;
-            min-width: 150px;
-            text-align: center;
-            margin-right: 10px;
-        }
-        .refresh-btn {
-            background: #ff9800;
-            display: inline-block;
-            width: auto;
-            min-width: 120px;
-            text-align: center;
-        }
-        .copy-btn:hover, .pdf-btn:hover, .refresh-btn:hover {
+        .copy-btn { background: #007bff; color: white; }
+        .pdf-btn { background: #28a745; color: white; }
+        .refresh-btn { background: #ffc107; color: black; }
+        .debug-btn { background: #17a2b8; color: white; }
+        
+        .copy-btn:hover, .pdf-btn:hover, .refresh-btn:hover, .debug-btn:hover {
             opacity: 0.9;
         }
         .dataTables_wrapper .dataTables_filter {
@@ -122,6 +133,8 @@
             text-align: center;
             padding: 20px;
             color: #666;
+            background: white;
+            border-radius: 8px;
         }
         .error-message {
             background: #fee;
@@ -130,6 +143,12 @@
             margin: 10px 0;
             border-radius: 4px;
             color: #c33;
+        }
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
         @media screen and (max-width: 767px) {
@@ -149,7 +168,7 @@
                 text-align: left;
                 margin-bottom: 10px;
             }
-            .pdf-btn, .refresh-btn {
+            .pdf-btn, .refresh-btn, .debug-btn {
                 display: block;
                 width: 100%;
                 margin-bottom: 10px;
@@ -163,136 +182,276 @@
     </style>
 </head>
 <body>
-    <h2>Shop List</h2>
-    
-    <div class="button-row">
-        <button id="pdfExportBtn" class="pdf-btn">Download PDF</button>
-        <button id="refreshBtn" class="refresh-btn">Refresh Data</button>
+    <div class="debug-panel">
+        <h3>🔍 Data Loading Debug Panel</h3>
+        <div id="debugInfo" class="debug-info">Initializing...</div>
+        <button id="debugBtn" class="debug-btn">Run Full Debug Test</button>
+        <button id="testAllSourcesBtn" class="debug-btn">Test All Data Sources</button>
     </div>
-    
-    <div class="search-row">
-        <div class="search-col">
-            <select id="departmentFilter" class="dropdown-filter">
-                <option value="">All Departments</option>
-            </select>
+
+    <div class="table-container">
+        <h2>🏪 Shop List - Full Dataset</h2>
+        
+        <div class="button-row">
+            <button id="pdfExportBtn" class="pdf-btn">📄 Download PDF</button>
+            <button id="refreshBtn" class="refresh-btn">🔄 Refresh Data</button>
+            <button id="rawDataBtn" class="debug-btn">📊 Show Raw Data</button>
         </div>
-        <div class="search-col">
-            <input type="text" id="searchShopName" class="search-input" placeholder="Search Shop Name">
+        
+        <div class="search-row">
+            <div class="search-col">
+                <select id="departmentFilter" class="dropdown-filter">
+                    <option value="">All Departments</option>
+                </select>
+            </div>
+            <div class="search-col">
+                <input type="text" id="searchShopName" class="search-input" placeholder="Search Shop Name">
+            </div>
+            <div class="search-col">
+                <select id="salesmanFilter" class="dropdown-filter">
+                    <option value="">All Salesmen</option>
+                </select>
+            </div>
         </div>
-        <div class="search-col">
-            <select id="salesmanFilter" class="dropdown-filter">
-                <option value="">All Salesmen</option>
-            </select>
-        </div>
+        
+        <div id="loadingMessage" class="loading">🔄 Loading shop data...</div>
+        <div id="errorMessage" class="error-message" style="display: none;"></div>
+        
+        <table id="shopTable" class="display" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Shop ID</th>
+                    <th>Department</th>
+                    <th>Shop Name</th>
+                    <th>Salesman</th>
+                    <th>Copy Shop ID</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
     </div>
-    
-    <div id="loadingMessage" class="loading">Loading shop data...</div>
-    <div id="errorMessage" class="error-message" style="display: none;"></div>
-    
-    <table id="shopTable" class="display" style="display: none;">
-        <thead>
-            <tr>
-                <th>Shop ID</th>
-                <th>Department</th>
-                <th>Shop Name</th>
-                <th>Salesman</th>
-                <th>Copy Shop ID</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
     
     <div id="toast" class="toast"></div>
     
     <script>
         let table;
         let currentData = [];
-        
-        // Hardcoded sample data as fallback
-        const sampleData = [
-            ["shop_id", "Salesman_ID", "shop_dep", "shop_name", "shop_salesman"],
-            ["01/2024/2901", "akgill9868@gmail.com", "DSIIDC", "NAND NAGRI", "Akshay Kumar Gill"],
-            ["01/2024/1531", "akgill9868@gmail.com", "DSIIDC", "OLD SEEMA PURI", "Akshay Kumar Gill"],
-            ["01/2024/1888", "akgill9868@gmail.com", "DSIIDC", "SHAHDARA BALBIR NAGAR", "Akshay Kumar Gill"],
-            ["01/2024/1687", "akgill9868@gmail.com", "DSIIDC", "SHAHDARA LONI ROAD", "Akshay Kumar Gill"],
-            ["01/2024/1796", "akgill9868@gmail.com", "DSIIDC", "MAJUPUR", "Akshay Kumar Gill"],
-            ["01/2024/0573", "akgill9868@gmail.com", "DSIIDC", "DILSHAD GARDEN", "Akshay Kumar Gill"],
-            ["01/2024/1627", "akgill9868@gmail.com", "DSIIDC", "TAHIR PUR", "Akshay Kumar Gill"],
-            ["01/2024/1563", "akgill9868@gmail.com", "DSIIDC", "SHAHDARA G T ROAD", "Akshay Kumar Gill"],
-            ["01/2024/1616", "akgill9868@gmail.com", "DSIIDC", "TAHIRPUR VILLAGE", "Akshay Kumar Gill"],
-            ["01/2024/1789", "akgill9868@gmail.com", "DSIIDC", "GOKALPURI", "Akshay Kumar Gill"]
-        ];
+        let debugInfo = [];
         
         $(document).ready(function() {
+            updateDebugInfo("Application initialized");
             loadShopData();
             setupRefreshButton();
+            setupDebugButtons();
         });
+        
+        function updateDebugInfo(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            debugInfo.push(logEntry);
+            
+            const debugEl = $('#debugInfo');
+            debugEl.removeClass('success error warning').addClass(type);
+            debugEl.text(debugInfo.slice(-10).join('\n')); // Show last 10 entries
+            
+            console.log(logEntry);
+        }
+        
+        function setupDebugButtons() {
+            $('#debugBtn').on('click', runFullDebugTest);
+            $('#testAllSourcesBtn').on('click', testAllDataSources);
+            $('#rawDataBtn').on('click', showRawDataModal);
+        }
+        
+        async function runFullDebugTest() {
+            updateDebugInfo("🔍 Running full debug test...", 'info');
+            
+            // Test all possible data sources
+            await testAllDataSources();
+            
+            // Test CSV parsing
+            const testCsv = `shop_id,dept,name,salesman
+test1,DSIIDC,Test Shop 1,Test Person
+test2,DSIIDC,Test Shop 2,Test Person`;
+            
+            try {
+                const parsed = parseCsv(testCsv);
+                updateDebugInfo(`✅ CSV parsing test: ${parsed.length} rows parsed`, 'success');
+            } catch (error) {
+                updateDebugInfo(`❌ CSV parsing test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testAllDataSources() {
+            updateDebugInfo("🌐 Testing all data sources...", 'info');
+            
+            const sources = [
+                {
+                    name: 'Google Sheets Published CSV',
+                    url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vT7tRur0c7yh9lPYIzh-8CRsDIADE3HK8WjRs4Cy1LxksSzXyeE4jS7jnaDM8hgHzyf-ltqF7R1-D79/pub?gid=0&single=true&output=csv"
+                },
+                {
+                    name: 'Alternative Google Sheets URL',
+                    url: "https://docs.google.com/spreadsheets/d/1pRz9CgOoamTrFipnmF-XuBCg9IZON9br5avgRlKYtxM/export?format=csv&gid=0"
+                },
+                {
+                    name: 'CORS Proxy #1',
+                    url: "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://docs.google.com/spreadsheets/d/e/2PACX-1vT7tRur0c7yh9lPYIzh-8CRsDIADE3HK8WjRs4Cy1LxksSzXyeE4jS7jnaDM8hgHzyf-ltqF7R1-D79/pub?gid=0&single=true&output=csv")
+                },
+                {
+                    name: 'CORS Proxy #2',
+                    url: "https://corsproxy.io/?" + encodeURIComponent("https://docs.google.com/spreadsheets/d/e/2PACX-1vT7tRur0c7yh9lPYIzh-8CRsDIADE3HK8WjRs4Cy1LxksSzXyeE4jS7jnaDM8hgHzyf-ltqF7R1-D79/pub?gid=0&single=true&output=csv")
+                }
+            ];
+            
+            for (let source of sources) {
+                try {
+                    updateDebugInfo(`🔄 Testing: ${source.name}`, 'info');
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+                    
+                    const response = await fetch(source.url, {
+                        signal: controller.signal,
+                        headers: {
+                            'Accept': 'text/plain, text/csv, */*'
+                        }
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const text = await response.text();
+                    const lines = text.split('\n').filter(line => line.trim());
+                    const dataLines = lines.slice(1); // Exclude header
+                    
+                    updateDebugInfo(`✅ ${source.name}: ${response.status} OK, ${lines.length} total lines, ${dataLines.length} data rows`, 'success');
+                    updateDebugInfo(`📋 First few lines: ${lines.slice(0, 3).join(' | ')}`, 'info');
+                    
+                    if (text.includes('shop_id') && dataLines.length > 10) {
+                        updateDebugInfo(`🎯 GOOD SOURCE FOUND: ${source.name} has ${dataLines.length} data rows!`, 'success');
+                    }
+                    
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        updateDebugInfo(`⏱️ ${source.name}: Timeout (>10s)`, 'warning');
+                    } else {
+                        updateDebugInfo(`❌ ${source.name}: ${error.message}`, 'error');
+                    }
+                }
+            }
+        }
         
         function loadShopData() {
             $("#loadingMessage").show();
             $("#errorMessage").hide();
             $("#shopTable").hide();
             
+            updateDebugInfo("🔄 Starting data load process...", 'info');
+            
             // Try multiple data sources in order
-            tryMultipleDataSources().then(csvText => {
-                if (!csvText || csvText.trim() === '') {
+            tryMultipleDataSources().then(result => {
+                updateDebugInfo(`✅ Data source successful: ${result.source}`, 'success');
+                updateDebugInfo(`📊 Raw data length: ${result.csvText.length} characters`, 'info');
+                
+                if (!result.csvText || result.csvText.trim() === '') {
                     throw new Error('Empty response from all sources');
                 }
-                processCSVData(csvText);
+                processCSVData(result.csvText, result.source);
             }).catch(error => {
+                updateDebugInfo(`❌ All sources failed: ${error.message}`, 'error');
                 console.error('All data sources failed, using sample data:', error);
-                processArrayData(sampleData);
+                processArrayData(getSampleData());
             });
         }
         
         async function tryMultipleDataSources() {
             const sources = [
-                // Try published CSV first (might work sometimes)
-                async () => {
-                    console.log('Trying direct published CSV...');
-                    const response = await fetch("https://docs.google.com/spreadsheets/d/e/2PACX-1vT7tRur0c7yh9lPYIzh-8CRsDIADE3HK8WjRs4Cy1LxksSzXyeE4jS7jnaDM8hgHzyf-ltqF7R1-D79/pub?gid=0&single=true&output=csv");
-                    if (!response.ok) throw new Error('Direct fetch failed');
-                    return await response.text();
+                {
+                    name: 'Google Sheets Published CSV',
+                    fetch: async () => {
+                        updateDebugInfo("🔄 Trying published CSV...", 'info');
+                        const response = await fetch("https://docs.google.com/spreadsheets/d/e/2PACX-1vT7tRur0c7yh9lPYIzh-8CRsDIADE3HK8WjRs4Cy1LxksSzXyeE4jS7jnaDM8hgHzyf-ltqF7R1-D79/pub?gid=0&single=true&output=csv");
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        return await response.text();
+                    }
                 },
-                
-                // Try working CORS proxy
-                async () => {
-                    console.log('Trying working CORS proxy...');
-                    const proxyUrl = "https://cors-anywhere.herokuapp.com/";
-                    const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT7tRur0c7yh9lPYIzh-8CRsDIADE3HK8WjRs4Cy1LxksSzXyeE4jS7jnaDM8hgHzyf-ltqF7R1-D79/pub?gid=0&single=true&output=csv";
-                    const response = await fetch(proxyUrl + sheetUrl);
-                    if (!response.ok) throw new Error('CORS proxy failed');
-                    return await response.text();
+                {
+                    name: 'Alternative Export URL',
+                    fetch: async () => {
+                        updateDebugInfo("🔄 Trying alternative export URL...", 'info');
+                        const response = await fetch("https://docs.google.com/spreadsheets/d/1pRz9CgOoamTrFipnmF-XuBCg9IZON9br5avgRlKYtxM/export?format=csv&gid=0");
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        return await response.text();
+                    }
                 },
-                
-                // Try another CORS proxy
-                async () => {
-                    console.log('Trying alternative CORS proxy...');
-                    const proxyUrl = "https://api.codetabs.com/v1/proxy?quest=";
-                    const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT7tRur0c7yh9lPYIzh-8CRsDIADE3HK8WjRs4Cy1LxksSzXyeE4jS7jnaDM8hgHzyf-ltqF7R1-D79/pub?gid=0&single=true&output=csv";
-                    const response = await fetch(proxyUrl + encodeURIComponent(sheetUrl));
-                    if (!response.ok) throw new Error('Alternative proxy failed');
-                    return await response.text();
+                {
+                    name: 'CORS Proxy AllOrigins',
+                    fetch: async () => {
+                        updateDebugInfo("🔄 Trying CORS proxy...", 'info');
+                        const proxyUrl = "https://api.allorigins.win/raw?url=";
+                        const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT7tRur0c7yh9lPYIzh-8CRsDIADE3HK8WjRs4Cy1LxksSzXyeE4jS7jnaDM8hgHzyf-ltqF7R1-D79/pub?gid=0&single=true&output=csv";
+                        const response = await fetch(proxyUrl + encodeURIComponent(sheetUrl));
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        return await response.text();
+                    }
+                },
+                {
+                    name: 'CORS Proxy IO',
+                    fetch: async () => {
+                        updateDebugInfo("🔄 Trying alternative CORS proxy...", 'info');
+                        const proxyUrl = "https://corsproxy.io/?";
+                        const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT7tRur0c7yh9lPYIzh-8CRsDIADE3HK8WjRs4Cy1LxksSzXyeE4jS7jnaDM8hgHzyf-ltqF7R1-D79/pub?gid=0&single=true&output=csv";
+                        const response = await fetch(proxyUrl + encodeURIComponent(sheetUrl));
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        return await response.text();
+                    }
                 }
             ];
             
             for (let i = 0; i < sources.length; i++) {
+                const source = sources[i];
                 try {
-                    const result = await sources[i]();
-                    if (result && result.includes('shop_id')) {
-                        console.log(`Data source ${i + 1} succeeded`);
-                        return result;
+                    const csvText = await source.fetch();
+                    const lines = csvText.split('\n').filter(line => line.trim());
+                    
+                    updateDebugInfo(`📊 ${source.name}: ${lines.length} lines received`, 'info');
+                    
+                    if (csvText && csvText.includes('shop_id') && lines.length > 5) {
+                        updateDebugInfo(`✅ ${source.name}: Valid data found with ${lines.length} lines`, 'success');
+                        return { csvText, source: source.name };
+                    } else {
+                        updateDebugInfo(`⚠️ ${source.name}: Invalid or insufficient data`, 'warning');
                     }
                 } catch (error) {
-                    console.log(`Data source ${i + 1} failed:`, error.message);
+                    updateDebugInfo(`❌ ${source.name}: ${error.message}`, 'error');
                 }
             }
             
             throw new Error('All data sources failed');
         }
         
+        function getSampleData() {
+            return [
+                ["shop_id", "Salesman_ID", "shop_dep", "shop_name", "shop_salesman"],
+                ["01/2024/2901", "akgill9868@gmail.com", "DSIIDC", "NAND NAGRI", "Akshay Kumar Gill"],
+                ["01/2024/1531", "akgill9868@gmail.com", "DSIIDC", "OLD SEEMA PURI", "Akshay Kumar Gill"],
+                ["01/2024/1888", "akgill9868@gmail.com", "DSIIDC", "SHAHDARA BALBIR NAGAR", "Akshay Kumar Gill"],
+                ["01/2024/1687", "akgill9868@gmail.com", "DSIIDC", "SHAHDARA LONI ROAD", "Akshay Kumar Gill"],
+                ["01/2024/1796", "akgill9868@gmail.com", "DSIIDC", "MAJUPUR", "Akshay Kumar Gill"],
+                ["01/2024/0573", "akgill9868@gmail.com", "DSIIDC", "DILSHAD GARDEN", "Akshay Kumar Gill"],
+                ["01/2024/1627", "akgill9868@gmail.com", "DSIIDC", "TAHIR PUR", "Akshay Kumar Gill"],
+                ["01/2024/1563", "akgill9868@gmail.com", "DSIIDC", "SHAHDARA G T ROAD", "Akshay Kumar Gill"],
+                ["01/2024/1616", "akgill9868@gmail.com", "DSIIDC", "TAHIRPUR VILLAGE", "Akshay Kumar Gill"],
+                ["01/2024/1789", "akgill9868@gmail.com", "DSIIDC", "GOKALPURI", "Akshay Kumar Gill"]
+            ];
+        }
+        
         function processArrayData(data) {
-            console.log('Using hardcoded sample data');
+            updateDebugInfo(`📊 Processing array data: ${data.length} rows`, 'info');
             const headers = data[0];
             const rows = data.slice(1);
             
@@ -305,7 +464,7 @@
             const departments = new Set();
             const salesmen = new Set();
             
-            rows.forEach(row => {
+            rows.forEach((row, index) => {
                 const shopId = row[0] || '';
                 const department = row[2] || '';
                 const shopName = row[3] || '';
@@ -331,12 +490,17 @@
             $("#loadingMessage").hide();
             $("#shopTable").show();
             
-            showToast(`Loaded ${rows.length} shops (sample data)`, 'success');
+            updateDebugInfo(`✅ Table populated with ${rows.length} shops`, 'success');
+            showToast(`Loaded ${rows.length} shops (fallback data)`, 'success');
         }
         
-        function processCSVData(csvText) {
+        function processCSVData(csvText, sourceName) {
+            updateDebugInfo(`📊 Processing CSV from ${sourceName}`, 'info');
+            updateDebugInfo(`📏 CSV length: ${csvText.length} characters`, 'info');
+            
             try {
                 const rows = parseCsv(csvText);
+                updateDebugInfo(`📋 Parsed ${rows.length} total rows`, 'info');
                 
                 if (rows.length === 0) {
                     throw new Error('No data found in CSV');
@@ -345,11 +509,11 @@
                 const headers = rows[0];
                 const data = rows.slice(1);
                 
-                console.log('CSV Headers:', headers);
-                console.log('Data rows:', data.length);
+                updateDebugInfo(`🏷️ Headers: ${headers.join(', ')}`, 'info');
+                updateDebugInfo(`📊 Data rows: ${data.length}`, 'info');
                 
                 if (data.length === 0) {
-                    throw new Error('No data rows found');
+                    throw new Error('No data rows found after headers');
                 }
                 
                 if (table) {
@@ -360,10 +524,11 @@
                 const tableBody = $("#shopTable tbody");
                 const departments = new Set();
                 const salesmen = new Set();
+                let validRows = 0;
                 
                 data.forEach((row, index) => {
-                    if (row.length < 5) {
-                        console.warn(`Row ${index + 1} has insufficient columns:`, row);
+                    if (row.length < 3) {
+                        updateDebugInfo(`⚠️ Row ${index + 1} has insufficient columns: ${row.length}`, 'warning');
                         return;
                     }
                     
@@ -371,6 +536,11 @@
                     const department = (row[2] || '').toString().trim();
                     const shopName = (row[3] || '').toString().trim();
                     const salesman = (row[4] || '').toString().trim();
+                    
+                    if (!shopId && !shopName) {
+                        updateDebugInfo(`⚠️ Row ${index + 1} has no shop ID or name, skipping`, 'warning');
+                        return;
+                    }
                     
                     if(department) departments.add(department);
                     if(salesman) salesmen.add(salesman);
@@ -384,7 +554,13 @@
                             <td><button class="copy-btn" data-shop-id="${shopId}">Copy</button></td>
                         </tr>
                     `);
+                    
+                    validRows++;
                 });
+                
+                updateDebugInfo(`✅ Valid rows processed: ${validRows}`, 'success');
+                updateDebugInfo(`🏷️ Departments found: ${departments.size}`, 'info');
+                updateDebugInfo(`👥 Salesmen found: ${salesmen.size}`, 'info');
                 
                 populateDropdowns(departments, salesmen);
                 initializeDataTable();
@@ -394,9 +570,11 @@
                 
                 currentData = data;
                 
-                showToast(`Successfully loaded ${data.length} shops`, 'success');
+                updateDebugInfo(`🎉 Success! Loaded ${validRows} shops from ${sourceName}`, 'success');
+                showToast(`Successfully loaded ${validRows} shops from ${sourceName}`, 'success');
                 
             } catch (error) {
+                updateDebugInfo(`❌ Error processing CSV: ${error.message}`, 'error');
                 console.error('Error processing CSV:', error);
                 showError(`Error processing data: ${error.message}`);
             }
@@ -418,13 +596,14 @@
         
         function initializeDataTable() {
             table = $("#shopTable").DataTable({
-                pageLength: 25,
-                lengthMenu: [10, 25, 50, 100],
+                pageLength: 50, // Show more rows by default
+                lengthMenu: [25, 50, 100, 200, 500], // Allow showing many more rows
                 order: [[0, 'asc']],
                 searching: true,
                 language: {
                     emptyTable: "No shop data available",
                     info: "Showing _START_ to _END_ of _TOTAL_ shops",
+                    infoEmpty: "Showing 0 to 0 of 0 shops",
                     paginate: {
                         first: "First",
                         last: "Last",
@@ -455,10 +634,12 @@
         
         function setupRefreshButton() {
             $('#refreshBtn').on('click', function() {
-                $(this).prop('disabled', true).text('Refreshing...');
+                $(this).prop('disabled', true).text('🔄 Refreshing...');
+                debugInfo = []; // Clear debug log
+                updateDebugInfo("🔄 Manual refresh initiated", 'info');
                 loadShopData();
                 setTimeout(() => {
-                    $(this).prop('disabled', false).text('Refresh Data');
+                    $(this).prop('disabled', false).text('🔄 Refresh Data');
                 }, 2000);
             });
         }
@@ -474,6 +655,28 @@
             });
         }
         
+        function showRawDataModal() {
+            if (currentData.length === 0) {
+                showToast('No data available to show', 'error');
+                return;
+            }
+            
+            const rawDataWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+            const rawHtml = `
+                <html>
+                <head><title>Raw Shop Data</title></head>
+                <body style="font-family: monospace; padding: 20px;">
+                    <h3>Raw CSV Data (${currentData.length} rows)</h3>
+                    <pre style="white-space: pre-wrap; font-size: 12px;">
+${currentData.map((row, i) => `Row ${i}: [${row.join(', ')}]`).join('\n')}
+                    </pre>
+                </body>
+                </html>
+            `;
+            rawDataWindow.document.write(rawHtml);
+            rawDataWindow.document.close();
+        }
+        
         function showError(message) {
             $("#loadingMessage").hide();
             $("#errorMessage").text(message).show();
@@ -483,6 +686,8 @@
         function parseCsv(text) {
             const result = [];
             const lines = text.split('\n');
+            
+            updateDebugInfo(`📄 Raw CSV has ${lines.length} lines`, 'info');
             
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
@@ -496,7 +701,12 @@
                     const char = line[j];
                     
                     if (char === '"') {
-                        inQuotes = !inQuotes;
+                        if (inQuotes && line[j + 1] === '"') {
+                            currentValue += '"';
+                            j++; // Skip the next quote
+                        } else {
+                            inQuotes = !inQuotes;
+                        }
                     } else if (char === ',' && !inQuotes) {
                         row.push(currentValue.trim());
                         currentValue = '';
@@ -509,6 +719,7 @@
                 result.push(row);
             }
             
+            updateDebugInfo(`✅ CSV parsing complete: ${result.length} rows extracted`, 'success');
             return result;
         }
         
