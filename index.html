@@ -26,7 +26,7 @@
             width: 100%;
             border-collapse: collapse;
         }
-        .copy-btn, .pdf-btn { 
+        .copy-btn, .pdf-btn, .refresh-btn { 
             padding: 5px 10px; 
             cursor: pointer; 
             background: #007bff; 
@@ -37,13 +37,20 @@
         }
         .pdf-btn {
             background: #4CAF50;
-            display: block;
-            width: 100%;
-            max-width: 200px;
+            display: inline-block;
+            width: auto;
+            min-width: 150px;
             text-align: center;
-            margin-bottom: 15px;
+            margin-right: 10px;
         }
-        .copy-btn:hover, .pdf-btn:hover {
+        .refresh-btn {
+            background: #ff9800;
+            display: inline-block;
+            width: auto;
+            min-width: 120px;
+            text-align: center;
+        }
+        .copy-btn:hover, .pdf-btn:hover, .refresh-btn:hover {
             opacity: 0.9;
         }
         .dataTables_wrapper .dataTables_filter {
@@ -65,6 +72,12 @@
             z-index: 1000;
             font-size: 14px;
         }
+        .error-toast {
+            background: #f44336;
+        }
+        .success-toast {
+            background: #4CAF50;
+        }
         .search-input {
             width: 100%;
             padding: 6px;
@@ -83,6 +96,9 @@
         .search-col {
             flex: 1;
             min-width: 150px;
+        }
+        .button-row {
+            margin-bottom: 15px;
         }
         table.dataTable tbody tr {
             height: 45px;
@@ -103,6 +119,19 @@
             box-sizing: border-box;
             font-size: 13px;
         }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .error-message {
+            background: #fee;
+            border: 1px solid #fcc;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            color: #c33;
+        }
         
         /* Responsive design improvements */
         @media screen and (max-width: 767px) {
@@ -122,8 +151,15 @@
                 text-align: left;
                 margin-bottom: 10px;
             }
-            .pdf-btn {
-                max-width: 100%;
+            .pdf-btn, .refresh-btn {
+                display: block;
+                width: 100%;
+                margin-bottom: 10px;
+            }
+            .button-row {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
             }
         }
     </style>
@@ -131,14 +167,15 @@
 <body>
     <h2>Shop List</h2>
     
-    <!-- Custom PDF Download Button -->
-    <button id="pdfExportBtn" class="pdf-btn">Download PDF</button>
+    <div class="button-row">
+        <button id="pdfExportBtn" class="pdf-btn">Download PDF</button>
+        <button id="refreshBtn" class="refresh-btn">Refresh Data</button>
+    </div>
     
     <div class="search-row">
         <div class="search-col">
             <select id="departmentFilter" class="dropdown-filter">
                 <option value="">All Departments</option>
-                <!-- Options will be populated dynamically -->
             </select>
         </div>
         <div class="search-col">
@@ -147,12 +184,14 @@
         <div class="search-col">
             <select id="salesmanFilter" class="dropdown-filter">
                 <option value="">All Salesmen</option>
-                <!-- Options will be populated dynamically -->
             </select>
         </div>
     </div>
     
-    <table id="shopTable" class="display">
+    <div id="loadingMessage" class="loading">Loading shop data...</div>
+    <div id="errorMessage" class="error-message" style="display: none;"></div>
+    
+    <table id="shopTable" class="display" style="display: none;">
         <thead>
             <tr>
                 <th>Shop ID</th>
@@ -168,101 +207,223 @@
     <div id="toast" class="toast"></div>
     
     <script>
+        let table; // Global table variable
+        let currentData = []; // Store current data
+        
         $(document).ready(function() {
-            const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT7tRur0c7yh9lPYIzh-8CRsDIADE3HK8WjRs4Cy1LxksSzXyeE4jS7jnaDM8hgHzyf-ltqF7R1-D79/pub?gid=0&single=true&output=csv";
-            let table; // Declare table variable to use across functions
-            
-            // Fetch and process CSV data
-            fetch(sheetUrl)
-                .then(response => response.text())
-                .then(csvText => {
-                    const rows = parseCsv(csvText);
-                    const headers = rows[0];
-                    const data = rows.slice(1);
-                    
-                    const tableBody = $("#shopTable tbody");
-                    
-                    // For dropdown filters
-                    const departments = new Set();
-                    const salesmen = new Set();
-                    
-                    data.forEach(row => {
-                        // Get data from the correct columns based on your confirmed structure
-                        const shopId = row[0] || '';        // shop_id
-                        const department = row[2] || '';    // shop_department
-                        const shopName = row[3] || '';      // shop_name
-                        const salesman = row[4] || '';      // salesman_name
-                        
-                        // Add to dropdown filter sets
-                        if(department) departments.add(department);
-                        if(salesman) salesmen.add(salesman);
-                        
-                        tableBody.append(`
-                            <tr>
-                                <td>${shopId}</td>
-                                <td>${department}</td>
-                                <td>${shopName}</td>
-                                <td>${salesman}</td>
-                                <td><button class="copy-btn" data-shop-id="${shopId}">Copy</button></td>
-                            </tr>
-                        `);
-                    });
-                    
-                    // Populate Department dropdown
-                    const departmentFilter = $('#departmentFilter');
-                    Array.from(departments).sort().forEach(department => {
-                        departmentFilter.append(`<option value="${department}">${department}</option>`);
-                    });
-                    
-                    // Populate Salesman dropdown
-                    const salesmanFilter = $('#salesmanFilter');
-                    Array.from(salesmen).sort().forEach(salesman => {
-                        salesmanFilter.append(`<option value="${salesman}">${salesman}</option>`);
-                    });
-                    
-                    // Initialize DataTable
-                    table = $("#shopTable").DataTable({
-                        pageLength: 25,
-                        lengthMenu: [10, 25, 50, 100],
-                        order: [[0, 'asc']],
-                        searching: true,
-                        language: {
-                            emptyTable: "No shop data available",
-                            info: "Showing _START_ to _END_ of _TOTAL_ shops",
-                            paginate: {
-                                first: "First",
-                                last: "Last",
-                                next: "Next",
-                                previous: "Prev"
-                            }
-                        },
-                        responsive: true
-                    });
-                    
-                    // Set up shop name search
-                    $('#searchShopName').on('keyup change', function() {
-                        table.column(2).search(this.value).draw();
-                    });
-                    
-                    // Set up department dropdown filter
-                    $('#departmentFilter').on('change', function() {
-                        table.column(1).search(this.value).draw();
-                    });
-                    
-                    // Set up salesman dropdown filter
-                    $('#salesmanFilter').on('change', function() {
-                        table.column(3).search(this.value).draw();
-                    });
-                    
-                    // Set up PDF export button
-                    $('#pdfExportBtn').on('click', function() {
-                        exportTableToPDF();
-                    });
-                    
-                    // Set up copy buttons
-                    setupCopyButtons();
-                });
+            loadShopData();
+            setupRefreshButton();
         });
+        
+        function loadShopData() {
+            const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT7tRur0c7yh9lPYIzh-8CRsDIADE3HK8WjRs4Cy1LxksSzXyeE4jS7jnaDM8hgHzyf-ltqF7R1-D79/pub?gid=0&single=true&output=csv";
+            
+            // Show loading state
+            $("#loadingMessage").show();
+            $("#errorMessage").hide();
+            $("#shopTable").hide();
+            
+            // Try to fetch data using CORS proxy first
+            fetchWithFallback(sheetUrl)
+                .then(csvText => {
+                    if (!csvText || csvText.trim() === '') {
+                        throw new Error('Empty response from server');
+                    }
+                    processCSVData(csvText);
+                })
+                .catch(error => {
+                    console.error('Error loading data:', error);
+                    showError(`Failed to load shop data: ${error.message}. Please check if the Google Sheet is published correctly.`);
+                });
+        }
+        
+        async function fetchWithFallback(url) {
+            // Always try CORS proxy first since direct access is blocked
+            const corsProxy = "https://api.allorigins.win/raw?url=";
+            
+            try {
+                console.log('Using CORS proxy...');
+                const proxyResponse = await fetch(corsProxy + encodeURIComponent(url));
+                if (!proxyResponse.ok) {
+                    throw new Error(`Proxy failed: HTTP ${proxyResponse.status}`);
+                }
+                const text = await proxyResponse.text();
+                console.log('CORS proxy fetch successful');
+                return text;
+            } catch (error) {
+                console.log('CORS proxy failed, trying direct fetch...', error.message);
+                
+                // Try direct fetch as fallback (unlikely to work but worth trying)
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const text = await response.text();
+                console.log('Direct fetch successful');
+                return text;
+            }
+        }
+        
+        function processCSVData(csvText) {
+            try {
+                const rows = parseCsv(csvText);
+                
+                if (rows.length === 0) {
+                    throw new Error('No data found in CSV');
+                }
+                
+                const headers = rows[0];
+                const data = rows.slice(1);
+                
+                console.log('CSV Headers:', headers);
+                console.log('Data rows:', data.length);
+                
+                if (data.length === 0) {
+                    throw new Error('No data rows found');
+                }
+                
+                // Clear existing table
+                if (table) {
+                    table.destroy();
+                }
+                $("#shopTable tbody").empty();
+                
+                const tableBody = $("#shopTable tbody");
+                const departments = new Set();
+                const salesmen = new Set();
+                
+                // Process each row
+                data.forEach((row, index) => {
+                    if (row.length < 5) {
+                        console.warn(`Row ${index + 1} has insufficient columns:`, row);
+                        return;
+                    }
+                    
+                    const shopId = (row[0] || '').toString().trim();
+                    const department = (row[2] || '').toString().trim();
+                    const shopName = (row[3] || '').toString().trim();
+                    const salesman = (row[4] || '').toString().trim();
+                    
+                    // Add to dropdown filter sets
+                    if(department) departments.add(department);
+                    if(salesman) salesmen.add(salesman);
+                    
+                    tableBody.append(`
+                        <tr>
+                            <td>${shopId}</td>
+                            <td>${department}</td>
+                            <td>${shopName}</td>
+                            <td>${salesman}</td>
+                            <td><button class="copy-btn" data-shop-id="${shopId}">Copy</button></td>
+                        </tr>
+                    `);
+                });
+                
+                // Populate filters
+                populateDropdowns(departments, salesmen);
+                
+                // Initialize DataTable
+                initializeDataTable();
+                
+                // Hide loading, show table
+                $("#loadingMessage").hide();
+                $("#shopTable").show();
+                
+                // Store data for later use
+                currentData = data;
+                
+                showToast(`Successfully loaded ${data.length} shops`, 'success');
+                
+            } catch (error) {
+                console.error('Error processing CSV:', error);
+                showError(`Error processing data: ${error.message}`);
+            }
+        }
+        
+        function populateDropdowns(departments, salesmen) {
+            // Clear and populate Department dropdown
+            const departmentFilter = $('#departmentFilter');
+            departmentFilter.find('option:not(:first)').remove();
+            Array.from(departments).sort().forEach(department => {
+                departmentFilter.append(`<option value="${department}">${department}</option>`);
+            });
+            
+            // Clear and populate Salesman dropdown
+            const salesmanFilter = $('#salesmanFilter');
+            salesmanFilter.find('option:not(:first)').remove();
+            Array.from(salesmen).sort().forEach(salesman => {
+                salesmanFilter.append(`<option value="${salesman}">${salesman}</option>`);
+            });
+        }
+        
+        function initializeDataTable() {
+            table = $("#shopTable").DataTable({
+                pageLength: 25,
+                lengthMenu: [10, 25, 50, 100],
+                order: [[0, 'asc']],
+                searching: true,
+                language: {
+                    emptyTable: "No shop data available",
+                    info: "Showing _START_ to _END_ of _TOTAL_ shops",
+                    paginate: {
+                        first: "First",
+                        last: "Last",
+                        next: "Next",
+                        previous: "Prev"
+                    }
+                },
+                responsive: true
+            });
+            
+            // Setup filters
+            setupFilters();
+            setupCopyButtons();
+        }
+        
+        function setupFilters() {
+            // Shop name search
+            $('#searchShopName').on('keyup change', function() {
+                table.column(2).search(this.value).draw();
+            });
+            
+            // Department filter
+            $('#departmentFilter').on('change', function() {
+                table.column(1).search(this.value).draw();
+            });
+            
+            // Salesman filter
+            $('#salesmanFilter').on('change', function() {
+                table.column(3).search(this.value).draw();
+            });
+        }
+        
+        function setupRefreshButton() {
+            $('#refreshBtn').on('click', function() {
+                $(this).prop('disabled', true).text('Refreshing...');
+                loadShopData();
+                setTimeout(() => {
+                    $(this).prop('disabled', false).text('Refresh Data');
+                }, 2000);
+            });
+        }
+        
+        function setupCopyButtons() {
+            $(document).off('click', '.copy-btn').on('click', '.copy-btn', function() {
+                const shopId = $(this).data('shop-id');
+                copyToClipboard(shopId);
+            });
+            
+            // Setup PDF export
+            $('#pdfExportBtn').off('click').on('click', function() {
+                exportTableToPDF();
+            });
+        }
+        
+        function showError(message) {
+            $("#loadingMessage").hide();
+            $("#errorMessage").text(message).show();
+            showToast(message, 'error');
+        }
         
         function parseCsv(text) {
             const result = [];
@@ -282,50 +443,86 @@
                     if (char === '"') {
                         inQuotes = !inQuotes;
                     } else if (char === ',' && !inQuotes) {
-                        row.push(currentValue);
+                        row.push(currentValue.trim());
                         currentValue = '';
                     } else {
                         currentValue += char;
                     }
                 }
                 
-                row.push(currentValue); // Push the last value
+                row.push(currentValue.trim());
                 result.push(row);
             }
             
             return result;
         }
         
-        function setupCopyButtons() {
-            $(document).on('click', '.copy-btn', function() {
-                const shopId = $(this).data('shop-id');
-                copyToClipboard(shopId);
-            });
-        }
-        
         function copyToClipboard(text) {
-            navigator.clipboard.writeText(text)
-                .then(() => showToast(`Copied: ${text}`))
-                .catch(err => showToast('Copy failed: ' + err));
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text)
+                    .then(() => showToast(`Copied: ${text}`, 'success'))
+                    .catch(err => {
+                        console.error('Clipboard API failed:', err);
+                        fallbackCopyTextToClipboard(text);
+                    });
+            } else {
+                fallbackCopyTextToClipboard(text);
+            }
         }
         
-        function showToast(message) {
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                showToast(`Copied: ${text}`, 'success');
+            } catch (err) {
+                showToast('Copy failed: ' + err, 'error');
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        function showToast(message, type = 'info') {
             const toast = $('#toast');
+            toast.removeClass('error-toast success-toast');
+            
+            if (type === 'error') {
+                toast.addClass('error-toast');
+            } else if (type === 'success') {
+                toast.addClass('success-toast');
+            }
+            
             toast.text(message).fadeIn();
-            setTimeout(() => toast.fadeOut(), 2000);
+            setTimeout(() => toast.fadeOut(), 3000);
         }
         
         function exportTableToPDF() {
+            if (!table) {
+                showToast('No data available for export', 'error');
+                return;
+            }
+            
             try {
                 // Get visible data from table
-                const table = $('#shopTable').DataTable();
                 const visibleData = [];
                 
                 table.rows({ search: 'applied' }).every(function() {
                     const data = this.data();
-                    // Exclude the last column (Copy button)
                     visibleData.push([data[0], data[1], data[2], data[3]]);
                 });
+                
+                if (visibleData.length === 0) {
+                    showToast('No visible data to export', 'error');
+                    return;
+                }
                 
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
@@ -334,31 +531,37 @@
                 doc.setFontSize(18);
                 doc.text("Shop List", 14, 22);
                 
+                // Add export info
+                doc.setFontSize(10);
+                doc.text(`Exported on: ${new Date().toLocaleString()}`, 14, 30);
+                doc.text(`Total records: ${visibleData.length}`, 14, 36);
+                
                 // Create the table using autoTable plugin
                 doc.autoTable({
                     head: [["Shop ID", "Department", "Shop Name", "Salesman"]],
                     body: visibleData,
-                    startY: 30,
+                    startY: 42,
                     styles: {
-                        fontSize: 10,
-                        cellPadding: 3
+                        fontSize: 9,
+                        cellPadding: 2
                     },
                     columnStyles: {
-                        0: { cellWidth: 30 },
-                        1: { cellWidth: 35 },
-                        2: { cellWidth: 70 },
-                        3: { cellWidth: 35 }
-                    }
+                        0: { cellWidth: 25 },
+                        1: { cellWidth: 30 },
+                        2: { cellWidth: 80 },
+                        3: { cellWidth: 40 }
+                    },
+                    margin: { top: 42, right: 14, bottom: 20, left: 14 }
                 });
                 
                 // Download the PDF
-                const filename = 'ShopList_' + new Date().toLocaleDateString().replace(/\//g, '-') + '.pdf';
+                const filename = `ShopList_${new Date().toISOString().split('T')[0]}.pdf`;
                 doc.save(filename);
                 
-                showToast('PDF downloaded successfully');
+                showToast('PDF downloaded successfully', 'success');
             } catch (error) {
                 console.error('PDF generation error:', error);
-                showToast('Failed to generate PDF. Please try again.');
+                showToast('Failed to generate PDF. Please try again.', 'error');
             }
         }
     </script>
